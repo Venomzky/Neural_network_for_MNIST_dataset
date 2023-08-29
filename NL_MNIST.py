@@ -1,8 +1,13 @@
 import sys, numpy as np
 from keras.datasets import mnist
 
-relu = lambda x: (x>=0)*x
-relu2deriv = lambda x: x>=0
+def tanh(x):
+    return np.tanh(x)
+def tanh2deriv(output):
+    return 1 - (output**2)
+def softmax(x):
+    temp = np.exp(x)
+    return temp/np.sum(temp, axis=1, keepdims=True)
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
@@ -10,10 +15,10 @@ images = (x_train[0:1000].reshape(1000,28*28))/255     #pixel value of images re
 labels = y_train[0:1000]                               #label for each image
 
 hidden_size = 100
-alpha = 0.001
+alpha = 0.1
 pixels_per_image = 784
 num_labels = 10
-iteration = 300 #not too many iterations to not overfit 
+iteration = 120 #not too many iterations to not overfit 
 batch_size = 100
 np.random.seed(1)
 weights_0_1 = 0.2*np.random.random((pixels_per_image, hidden_size)) - 0.1
@@ -41,26 +46,24 @@ for j in range(iteration):
         batch_start, batch_end = ((i*batch_size), ((i+1)*batch_size))
 
         layer0 = images[batch_start:batch_end]
-        layer1 = relu(np.dot(layer0,weights_0_1))
+        layer1 = tanh(np.dot(layer0,weights_0_1))
         dropout_mask = np.random.randint(2, size=layer1.shape)
         layer1 *= dropout_mask * 2 #50% of nodes are turned off, value of rest nodes are increased by 1/percent of turned on nodes
-        layer2 = np.dot(layer1,weights_1_2)
-        error += np.sum((labels[batch_start:batch_end]-layer2)**2)
+        layer2 = softmax(np.dot(layer1,weights_1_2))
         for k in range(batch_size):
             correct_cnt += int(np.argmax(layer2[k:k+1])==np.argmax(labels[batch_start+k:batch_start+k+1]))
-            layer_2_delta = (labels[batch_start:batch_end]-layer2)/batch_size
-            layer_1_delta = layer_2_delta.dot(weights_1_2.T)* relu2deriv(layer1)
-            layer_1_delta *= dropout_mask
+        layer_2_delta = (labels[batch_start:batch_end]-layer2)/batch_size
+        layer_1_delta = layer_2_delta.dot(weights_1_2.T)* tanh2deriv(layer1)
+        layer_1_delta *= dropout_mask
 
-            weights_1_2 += alpha * layer1.T.dot(layer_2_delta)
-            weights_0_1 += alpha * layer0.T.dot(layer_1_delta)
+        weights_1_2 += alpha * layer1.T.dot(layer_2_delta)
+        weights_0_1 += alpha * layer0.T.dot(layer_1_delta)
     if (j%10==0):
         test_error = 0.0
         test_correct_cnt = 0
         for i in range(len(test_images)):
             layer0 = test_images[i:i+1]
-            layer1 = relu(np.dot(layer0,weights_0_1))
+            layer1 = tanh(np.dot(layer0,weights_0_1))
             layer2 = np.dot(layer1,weights_1_2)
-            test_error += np.sum((test_labels[i:i+1] - layer2) ** 2)
             test_correct_cnt += int(np.argmax(layer2) == np.argmax(test_labels[i:i+1]))
-        print(f"I: {j} Train error: {error/len(images)} Train acc: {correct_cnt/len(images)} Test error: {test_error/len(test_images)} Test acc: {test_correct_cnt/len(test_images)}")
+        print(f"I: {j} Train acc: {correct_cnt/len(images)} Test acc: {test_correct_cnt/len(test_images)}")
